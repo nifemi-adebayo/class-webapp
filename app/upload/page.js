@@ -22,7 +22,6 @@ function guessType(name) {
 }
 
 export default function UploadPage() {
-  const [password, setPassword] = useState("");
   const [title, setTitle] = useState("");
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -35,7 +34,6 @@ export default function UploadPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-upload-password": password,
       },
       body: JSON.stringify(body),
     });
@@ -81,17 +79,17 @@ export default function UploadPage() {
   }
 
   async function handleUpload() {
-    setError("");
-    setLink("");
-    if (!file || !title || !password) {
-      setError("Please fill in the password, title, and choose a video.");
-      return;
-    }
+  setError("");
+  setLink("");
+  if (!file || !title) {
+    setError("Please enter a title and choose a file.");
+    return;
+  }
 
-    setUploading(true);
-    setProgress(0);
+  setUploading(true);
+  setProgress(0);
 
-    try {
+  try {
       const contentType = file.type || guessType(file.name);
 
       // 1. Start
@@ -149,11 +147,7 @@ export default function UploadPage() {
 
       <div className="mt-6 flex flex-col gap-4">
         <input
-          type="password"
-          placeholder="Upload password"
           className="rounded border p-2 text-black"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
         />
         <input
           type="text"

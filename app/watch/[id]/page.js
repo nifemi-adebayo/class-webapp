@@ -5,9 +5,13 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2 } from "../../../lib/r2";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 import ShareButtons from "./ShareButtons";
+import { redirect } from "next/navigation";
+import { getRole } from "../../../lib/session";
 
 async function WatchContent({ params }) {
   const { id } = await params;
+  const role = await getRole();
+if (!role) redirect(`/login?next=/watch/${id}`);
 
   const { data: file } = await supabaseAdmin
     .from("videos")
