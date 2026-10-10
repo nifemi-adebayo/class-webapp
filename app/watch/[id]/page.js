@@ -1,17 +1,19 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2 } from "../../../lib/r2";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
-import ShareButtons from "./ShareButtons";
-import { redirect } from "next/navigation";
 import { getRole } from "../../../lib/session";
+import Header from "../../components/Header";
+import Footer from "../../components/Footer";
+import ShareButtons from "./ShareButtons";
 
 async function WatchContent({ params }) {
   const { id } = await params;
   const role = await getRole();
-if (!role) redirect(`/login?next=/watch/${id}`);
+  if (!role) redirect(`/login?next=/watch/${id}`);
 
   const { data: file } = await supabaseAdmin
     .from("videos")
@@ -51,57 +53,75 @@ if (!role) redirect(`/login?next=/watch/${id}`);
     ? (file.size_bytes / (1024 * 1024)).toFixed(1)
     : null;
 
+  const isVideo = type.startsWith("video/");
+  const isAudio = type.startsWith("audio/");
+  const isEmbeddable = type === "application/pdf" || type === "text/plain";
+
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-bold">{file.title}</h1>
-      <p className="mt-1 text-sm text-gray-400">
-        {new Date(file.created_at).toLocaleDateString()}
-        {sizeMB && ` · ${sizeMB} MB`}
-      </p>
+    <>
+      <Header role={role} />
+      <main className="mx-auto max-w-3xl px-4 py-6">
+        <Link href="/" className="text-sm text-blue-300 hover:underline">
+          ← Back to library
+        </Link>
 
-      <div className="mt-6">
-        {type.startsWith("video/") && (
-          <video
-            src={viewUrl}
-            controls
-            preload="metadata"
-            className="w-full rounded bg-black"
-          />
-        )}
+        <h1 className="mt-4 text-2xl font-bold">{file.title}</h1>
+        <p className="mt-1 text-sm text-gray-400">
+          Added {new Date(file.created_at).toLocaleDateString()}
+          {sizeMB && ` · ${sizeMB} MB`}
+        </p>
 
-        {type.startsWith("audio/") && (
-          <audio src={viewUrl} controls className="w-full" />
-        )}
-
-        {(type === "application/pdf" || type === "text/plain") && (
-          <iframe
-            src={viewUrl}
-            className="h-[70vh] w-full rounded border bg-white"
-          />
-        )}
-
-        {!type.startsWith("video/") &&
-          !type.startsWith("audio/") &&
-          type !== "application/pdf" &&
-          type !== "text/plain" && (
-            <p className="rounded border p-4">
-              This file type can't be previewed in the browser. Use the download
-              button below.
-            </p>
+        <div className="mt-6">
+          {isVideo && (
+            <video
+              src={viewUrl}
+              controls
+              preload="metadata"
+              className="w-full rounded-xl bg-black"
+            />
           )}
-      </div>
+          {isAudio && (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+              <p className="mb-3 text-sm text-gray-400">
+                🎧 Press play to listen
+              </p>
+              <audio src={viewUrl} controls className="w-full" />
+            </div>
+          )}
+          {isEmbeddable && (
+            <iframe
+              src={viewUrl}
+              className="h-[70vh] w-full rounded-xl border border-white/10 bg-white"
+            />
+          )}
+          {!isVideo && !isAudio && !isEmbeddable && (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center">
+              <p className="text-4xl">📎</p>
+              <p className="mt-2 text-gray-300">
+                This file can't be previewed in the browser. Tap Download to
+                open it on your device.
+              </p>
+            </div>
+          )}
+        </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <a
-          href={downloadUrl}
-          className="rounded bg-blue-600 px-4 py-2 font-semibold text-white"
-        >
-          Download
-        </a>
-      </div>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <a
+            href={downloadUrl}
+            className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white hover:bg-blue-500"
+          >
+            ⬇ Download
+          </a>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Download links expire after a few hours. Reopen this page for a fresh
+          one.
+        </p>
 
-      <ShareButtons title={file.title} />
-    </main>
+        <ShareButtons title={file.title} />
+      </main>
+      <Footer />
+    </>
   );
 }
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import Header from "../components/Header";
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -28,13 +30,12 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
+  const [copied, setCopied] = useState(false);
 
   async function post(url, body) {
     const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const data = await res.json();
@@ -42,7 +43,6 @@ export default function UploadPage() {
     return data;
   }
 
-  // Sends one chunk to R2 and reports progress
   function putPart(url, blob, onProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -64,7 +64,6 @@ export default function UploadPage() {
     });
   }
 
-  // Tries a chunk up to 3 times before giving up
   async function withRetry(fn) {
     let lastError;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -79,26 +78,24 @@ export default function UploadPage() {
   }
 
   async function handleUpload() {
-  setError("");
-  setLink("");
-  if (!file || !title) {
-    setError("Please enter a title and choose a file.");
-    return;
-  }
+    setError("");
+    setLink("");
+    if (!file || !title) {
+      setError("Please enter a title and choose a file.");
+      return;
+    }
 
-  setUploading(true);
-  setProgress(0);
+    setUploading(true);
+    setProgress(0);
 
-  try {
+    try {
       const contentType = file.type || guessType(file.name);
 
-      // 1. Start
       const { uploadId, key } = await post("/api/upload/start", {
         filename: file.name,
         contentType,
       });
 
-      // 2. Upload chunks one by one
       const totalParts = Math.ceil(file.size / CHUNK_SIZE);
       const parts = [];
       let doneBytes = 0;
@@ -123,7 +120,6 @@ export default function UploadPage() {
         setProgress(Math.round((doneBytes / file.size) * 100));
       }
 
-      // 3. Complete
       const { id } = await post("/api/upload/complete", {
         key,
         uploadId,
@@ -134,60 +130,116 @@ export default function UploadPage() {
       });
 
       setLink(`${window.location.origin}/watch/${id}`);
+      setTitle("");
+      setFile(null);
     } catch (err) {
-      setError(err.message);
+      setError(
+        err.message === "Wrong password"
+          ? "You're not logged in as admin. Log in first, then try again."
+          : err.message,
+      );
     } finally {
       setUploading(false);
     }
   }
 
+  async function copyLink() {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
-    <main className="mx-auto max-w-xl p-8">
-      <h1 className="text-3xl font-bold">Upload a video</h1>
+    <>
+      <Header role="admin" />
+      <main className="mx-auto max-w-xl px-4 py-8">
+        <h1 className="text-2xl font-bold">Upload to the class library</h1>
+        <p className="mt-1 text-sm text-gray-400">
+          Videos, audio, PDFs, text and Word files. Large files upload in
+          pieces, so keep this page open until it finishes.
+        </p>
 
-      <div className="mt-6 flex flex-col gap-4">
-        <input
-          className="rounded border p-2 text-black"
-        />
-        <input
-          type="text"
-          placeholder="Title (e.g. Physics - Week 3)"
-          className="rounded border p-2 text-black"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <input
-          type="file"
-          accept="video/*,audio/*,text/plain,.txt,.pdf,.doc,.docx"
-          onChange={(e) => setFile(e.target.files[0])}
-        />
+        <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6">
+          <label className="text-sm font-medium" htmlFor="title">
+            Title
+          </label>
+          <input
+            id="title"
+            type="text"
+            placeholder="e.g. Physics - Week 3 lecture"
+            className="rounded-lg border border-gray-600 bg-gray-800 p-3 text-white placeholder-gray-500 outline-none focus:border-blue-500"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
 
-        <button
-          onClick={handleUpload}
-          disabled={uploading}
-          className="rounded bg-blue-600 p-2 font-semibold text-white disabled:opacity-50"
-        >
-          {uploading ? `Uploading... ${progress}%` : "Upload"}
-        </button>
+          <label className="text-sm font-medium" htmlFor="file">
+            File
+          </label>
+          <input
+            id="file"
+            type="file"
+            accept="video/*,audio/*,text/plain,.txt,.pdf,.doc,.docx"
+            className="text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-gray-700 file:px-4 file:py-2 file:text-white"
+            onChange={(e) => setFile(e.target.files[0])}
+          />
+          {file && (
+            <p className="text-xs text-gray-400">
+              {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+            </p>
+          )}
 
-        {uploading && (
-          <div className="h-3 w-full rounded bg-gray-300">
-            <div
-              className="h-3 rounded bg-green-500 transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
+          <button
+            onClick={handleUpload}
+            disabled={uploading}
+            className="rounded-lg bg-blue-600 p-3 font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {uploading ? `Uploading... ${progress}%` : "Upload"}
+          </button>
 
-        {error && <p className="text-red-500">{error}</p>}
+          {uploading && (
+            <div className="h-3 w-full overflow-hidden rounded-full bg-gray-700">
+              <div
+                className="h-3 rounded-full bg-green-500 transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
 
-        {link && (
-          <div className="rounded border border-green-500 p-3">
-            <p className="font-semibold">Upload complete!</p>
-            <p className="break-all text-sm">{link}</p>
-          </div>
-        )}
-      </div>
-    </main>
+          {error && (
+            <p className="rounded-lg bg-red-900/40 p-3 text-sm text-red-300">
+              {error}{" "}
+              {error.includes("not logged in") && (
+                <Link href="/login" className="underline">
+                  Go to login
+                </Link>
+              )}
+            </p>
+          )}
+
+          {link && (
+            <div className="rounded-lg border border-green-600 bg-green-900/20 p-4">
+              <p className="font-semibold text-green-300">
+                ✅ Upload complete!
+              </p>
+              <p className="mt-1 break-all text-sm text-gray-300">{link}</p>
+              <div className="mt-3 flex gap-3">
+                <button
+                  onClick={copyLink}
+                  className="rounded-lg bg-gray-700 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  {copied ? "Copied!" : "Copy link"}
+                </button>
+                <Link
+                  href="/"
+                  className="rounded-lg border border-gray-600 px-4 py-2 text-sm text-gray-300"
+                >
+                  View library
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </>
   );
 }
