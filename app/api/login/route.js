@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { makeToken } from "../../../lib/session";
 
 export async function POST(request) {
-  const { code } = await request.json();
+  const body = await request.json();
+  const code = (body.code || "").trim();
 
   let role = null;
   if (code && code === process.env.UPLOAD_PASSWORD) role = "admin";
